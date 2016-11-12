@@ -114,13 +114,13 @@ class FIFOParticipantReceiveThread extends Thread {
     /***
      * the implementation of this method is the core of the
      * FIFO multicast algorithm
+     * the received order is random, but the delivering
+     * order must be the same as sending order
      */
     private void handleReceivedMessage() {
         // get the cached messages from the participant
         receiver.putIntoWaitQueuesToDeliver(sender.getId(), message);
         Vector<Message> messages = receiver.getWaitQueueMessagesToDeliver(sender.getId());
-
-        // init the last sent tick or get last sent tick
 
         // loop the cached messages to find the message which 
         // should be delivered
@@ -135,7 +135,7 @@ class FIFOParticipantReceiveThread extends Thread {
                 }
             }
             if(messageToFind != null) {
-                // the message is found, deliver it
+                // the message is found, deliver it and update the receiving buffer
                 receiver.deliverMessage(messageToFind);
                 receiver.updateLastSentTick(sender.getId(), messageToFind.getTimeStamp().getTick());
                 receiver.removeFromWaitQueuesToDeliver(sender.getId(), messageToFind);
@@ -143,7 +143,7 @@ class FIFOParticipantReceiveThread extends Thread {
 
                 // the last send tick was increased, so the cached messages
                 // should be loop again to find the next one 
-                // to be send
+                // to be deliver
                 continue;
             }
             else {

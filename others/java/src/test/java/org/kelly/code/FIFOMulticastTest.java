@@ -7,6 +7,10 @@ import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
 
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Vector;
+
 /**
  * Unit test for simple App.
  */
@@ -29,21 +33,26 @@ public class FIFOMulticastTest
     }
 
     public void testMulticast() {
+        // construct the group and participants
+        int participantNumber = 5;
         Group group = new Group();
-        for(int i = 0;i < 5;i++) {
+        for(int i = 0;i < participantNumber;i++) {
             FIFOParticipant participant = new FIFOParticipant();
             participant.setId(i);
             participant.setGroup(group);
             group.addParticipant(participant);
         }
 
+        // multicast messages for each participant
+        int messageNumber = 8;
         for(Participant sender: group.getParticipants()) {
-            for(int i = 0;i < 8;i++) {
+            for(int i = 0;i < messageNumber;i++) {
                 Message message = new Message();
                 message.setInformation("message" + i);
                 sender.multiCastMessage(message);
             }
         }
+
 
         try {
             Thread.sleep(5000);
@@ -52,10 +61,31 @@ public class FIFOMulticastTest
             ie.printStackTrace();
         }
 
-        System.out.println("print participants:");
+        // check if the delivering order is the same as sending order
+        for(Participant receiver: group.getParticipants()) {
+            for(Participant sender: group.getParticipants()) {
+                // get all deliveredMessage from this sender
+                List<Message> deliveredMessagesOfTheSender = new ArrayList<Message>();
+
+                Vector<Message> allDeliveredMessages = receiver.getDeliveredMessages();
+                for(Message message: allDeliveredMessages) {
+                    FIFOMessage fifoMessage = (FIFOMessage)message;
+                    if(fifoMessage.getTimeStamp().getId() == sender.getId()) {
+                        deliveredMessagesOfTheSender.add(fifoMessage);
+                    }
+                }
+                // assert the deliver orders are right
+                for(int i = 0;i < messageNumber;i++) {
+                    Message message = deliveredMessagesOfTheSender.get(i);
+                    assertTrue(message.getInformation().equals("message" + i));
+                } 
+            } 
+        }
+
+/*        System.out.println("print participants:");
         for(Participant participant: group.getParticipants()) {
             System.out.println(participant);
         }
-
+*/
     }
 }
