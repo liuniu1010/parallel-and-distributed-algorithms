@@ -64,7 +64,7 @@ class FIFOParticipantReceiveThread extends Thread {
         receiver = inputReceiver;
     }
 
-    private static Hashtable<Integer, Vector<Message>> waitQueuesToSend = new Hashtable<Integer, Vector<Message>>();
+    private static Hashtable<Integer, Vector<Message>> waitQueuesToDeliver = new Hashtable<Integer, Vector<Message>>();
     private static Hashtable<Integer, Integer> lastSentTickCache = new Hashtable<Integer, Integer>();
 
 
@@ -78,11 +78,12 @@ class FIFOParticipantReceiveThread extends Thread {
         int participantId = sender.getId();
 
         // get the cached messages from the participant
-        Vector<Message> messages = waitQueuesToSend.get(participantId);
+        Vector<Message> messages = waitQueuesToDeliver.get(participantId);
         if(messages == null) {
             messages = new Vector<Message>();
         }
         messages.add(receivedMessage);
+        waitQueuesToDeliver.put(participantId, messages);
 
         // init the last sent tick or get last sent tick
         int lastSentTick = 0;

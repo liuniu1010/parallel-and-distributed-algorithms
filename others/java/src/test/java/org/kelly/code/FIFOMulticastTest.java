@@ -29,7 +29,7 @@ public class FIFOMulticastTest
     }
 
     public void testMulticast() {
-/*        Group group = new Group();
+        Group group = new Group();
         for(int i = 0;i < 1;i++) {
             FIFOParticipant participant = new FIFOParticipant();
             participant.setId(i);
@@ -57,6 +57,6 @@ public class FIFOMulticastTest
         for(Participant participant: group.getParticipants()) {
             System.out.println(participant);
         }
-*/
+
     }
 }

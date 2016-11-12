@@ -19,7 +19,7 @@ public class FIFOMessage extends Message {
     @Override
     public String toString() {
         String str = "FIFOMessage: information = " + super.getInformation();
-        str += ", timeStamp = " + timeStamp.toString();
+        str += ", timeStamp: " + timeStamp.toString();
         return str;
     }
 }
