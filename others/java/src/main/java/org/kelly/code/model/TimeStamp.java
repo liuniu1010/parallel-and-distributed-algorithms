@@ -9,19 +9,32 @@ public class TimeStamp {
     private int id;
     private int tick;
 
-    public int getId() {
-        return id;
+    public TimeStamp(int inputId, int inputTick) {
+        id = inputId;
+        tick = inputTick;
     }
 
-    public void setId(int inputId) {
-        id = inputId;
+    public int getId() {
+        return id;
     }
 
     public int getTick() {
         return tick;
     }
 
-    public void setTick(int inputTick) {
-        tick = inputTick;
+    public void tickIncrease() {
+        tick++;
+    }
+
+    public TimeStamp clone() {
+        TimeStamp clone = new TimeStamp(id, tick);
+        return clone;
+    }
+
+    @Override
+    public String toString() {
+        String str = "id = " + id;
+        str += ", tick = " + tick;
+        return str;
     }
 }

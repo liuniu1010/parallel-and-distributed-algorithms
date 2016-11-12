@@ -4,7 +4,7 @@ public class FIFOMessage extends Message {
     private TimeStamp timeStamp;
 
     public FIFOMessage(String inputInformation, TimeStamp inputTimeStamp) {
-        super.setInformation(inputInformation);
+        this.setInformation(inputInformation);
         timeStamp = inputTimeStamp;
     }
 
@@ -14,5 +14,12 @@ public class FIFOMessage extends Message {
 
     public void setTimeStamp(TimeStamp inputTimeStamp) {
         timeStamp = inputTimeStamp;
+    }
+
+    @Override
+    public String toString() {
+        String str = "FIFOMessage: information = " + super.getInformation();
+        str += ", timeStamp = " + timeStamp.toString();
+        return str;
     }
 }

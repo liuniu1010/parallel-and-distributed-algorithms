@@ -12,10 +12,7 @@ public class ReliableChannel extends Channel {
      */
     @Override
     public void sendMessage(Participant sender, Message message, Participant receiver) {
-        ReliableChannelThread handleThread = new ReliableChannelThread();
-        handleThread.setSender(sender);
-        handleThread.setMessage(message);
-        handleThread.setReceiver(receiver);
+        ReliableChannelThread handleThread = new ReliableChannelThread(sender, message, receiver);
         handleThread.start();
     }
 }
@@ -25,28 +22,10 @@ class ReliableChannelThread extends Thread {
     private Participant receiver;
     private Message message;
 
-    public Participant getSender() {
-        return sender;
-    }
-
-    public void setSender(Participant inputSender) {
+    public ReliableChannelThread(Participant inputSender, Message inputMessage, Participant inputReceiver) {
         sender = inputSender;
-    }
-
-    public Participant getReceiver() {
-        return receiver;
-    }
-
-    public void setReceiver(Participant inputReceiver) {
-        receiver = inputReceiver;
-    }
-
-    public Message getMessage() {
-        return message;
-    }
-
-    public void setMessage(Message inputMessage) {
         message = inputMessage;
+        receiver = inputReceiver;
     }
 
     @Override
