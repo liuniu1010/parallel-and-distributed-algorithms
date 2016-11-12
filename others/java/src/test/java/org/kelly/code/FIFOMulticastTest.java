@@ -30,21 +30,20 @@ public class FIFOMulticastTest
 
     public void testMulticast() {
         Group group = new Group();
-        for(int i = 0;i < 1;i++) {
+        for(int i = 0;i < 5;i++) {
             FIFOParticipant participant = new FIFOParticipant();
             participant.setId(i);
             participant.setGroup(group);
             group.addParticipant(participant);
         }
 
-//        for(Participant participant: group.getParticipants()) {
-            Participant sender = group.getParticipants().get(0);
+        for(Participant sender: group.getParticipants()) {
             for(int i = 0;i < 8;i++) {
                 Message message = new Message();
                 message.setInformation("message" + i);
                 sender.multiCastMessage(message);
             }
-//        }
+        }
 
         try {
             Thread.sleep(5000);
