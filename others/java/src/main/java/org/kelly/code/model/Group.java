@@ -27,4 +27,8 @@ public class Group {
             participants.remove(inputParticipant);
         }
     }
+
+    public int getNumberOfParticipants() {
+        return (participants == null)?0:participants.size();
+    }
 }
