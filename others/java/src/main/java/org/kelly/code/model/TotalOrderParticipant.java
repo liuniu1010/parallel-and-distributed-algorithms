@@ -84,7 +84,6 @@ public class TotalOrderParticipant extends Participant {
         return waitQueuesToDeliver;
     }
 
-
     public void putIntoWaitQueuesToDeliver(Message message) {
         waitQueuesToDeliver.add(message);
     }
@@ -134,7 +133,15 @@ class TotalOrderParticipantReceiveThread extends Thread {
 
     @Override
     public void run() {
-        handleReceivedMessage();
+        /***
+         * in the handle method, all action of sending message through Channel
+         * are asynchronous calling. So dead lock will never happen since 
+         * since the logic in handle method will not wait on another synchronized
+         * action
+         */
+        synchronized(receiver) {
+            handleReceivedMessage();
+        }
     }
 
     /***
@@ -162,7 +169,6 @@ class TotalOrderParticipantReceiveThread extends Thread {
         // this message is a clone from the channel, so
         // don't need to worry about that multi threads
         // modify on the same instance
-//        message.setSenderId(sender.getId());
         message.setPriority(newPriority);
         message.setDeliverable(false);
         receiver.putIntoWaitQueuesToDeliver(message);
@@ -174,18 +180,11 @@ class TotalOrderParticipantReceiveThread extends Thread {
     }
 
     private void handleStep2Message() {
-/*        // generate a clone message to prevent multi threads modify on the same instance of message
-        TotalOrderMessage cloneMessage = new TotalOrderMessage(message.getInformation());
-        cloneMessage.setId(message.getId());
-        cloneMessage.setSenderId(receiver.getId()); // this message is on step2, the receiver is the orignal sender
-        cloneMessage.setPriority(message.getPriority());
-        receiver.putIntoWaitQueuesToSend(cloneMessage);
-*/
         receiver.putIntoWaitQueuesToSend(message);
 
         // check if all messages are feedback
         if(receiver.getSizeOfWaitQueuesToSend(message.getId()) == receiver.getGroup().getNumberOfParticipants()) {
-            // current thread is the final thread which get the last feedback of messges 
+            // current thread is the final thread which get the last feedback of messages 
             message.setPriority(receiver.getMaxPriorityInWaitQueuesToSend(message.getId()));
             message.setStep(3);
             // get all participants and send message to all of them
@@ -208,12 +207,29 @@ class TotalOrderParticipantReceiveThread extends Thread {
             }
         }
 
+        if(messageToFind == null) {
+            /***
+             * this case should not happen, it is not scientific
+             */
+            throw new RuntimeException("no messages in the wait to deliver queue with the id of the new received message which step = 3");
+        }
+
         messageToFind.setPriority(message.getPriority());
         messageToFind.setDeliverable(true);
 
         Collections.sort(messages, new Comparator<Message>() {
             public int compare(Message message1, Message message2) {
-                return Integer.valueOf(((TotalOrderMessage)message1).getPriority()).compareTo(((TotalOrderMessage)message2).getPriority());
+                TotalOrderMessage totalOrderMessage1 = (TotalOrderMessage)message1;
+                TotalOrderMessage totalOrderMessage2 = (TotalOrderMessage)message2;
+                int priority1 = totalOrderMessage1.getPriority();
+                int priority2 = totalOrderMessage2.getPriority();
+                if(priority1 != priority2) {
+                    return Integer.valueOf(priority1).compareTo(priority2);
+                }
+                else {
+                    // tie breaking by sender id
+                    return Integer.valueOf(totalOrderMessage1.getSenderId()).compareTo(totalOrderMessage2.getSenderId());
+                }
             }
         });
 
@@ -222,8 +238,12 @@ class TotalOrderParticipantReceiveThread extends Thread {
             if(firstMessage.isDeliverable()){
                 receiver.deliverMessage(firstMessage);
                 receiver.removeFromWaitQueuesToDeliver(firstMessage);
+                continue;
             }
             else{
+                // the first message is not deliverable 
+                // so we have to continue to wait for new 
+                // incoming message
                 break;
             }
         }

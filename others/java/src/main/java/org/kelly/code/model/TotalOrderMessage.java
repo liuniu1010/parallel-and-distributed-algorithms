@@ -69,7 +69,7 @@ public class TotalOrderMessage extends Message {
 
     @Override
     public String toString() {
-        String str = "FIFOMessage: information = " + super.getInformation();
+        String str = "TotalOrderMessage: information = " + super.getInformation();
         str += ", senderId = " + senderId;
         str += ", step = " + step;
         str += ", priority = " + priority;
