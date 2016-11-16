@@ -76,11 +76,9 @@ public class FIFOParticipant extends Participant {
         }
 
         // each time of multicast, increase the tick generate
-        // a clone to append to the message
         baseTimeStamp.tickIncrease();
-        TimeStamp cloneStamp = baseTimeStamp.clone();
  
-        FIFOMessage fifoMessage = new FIFOMessage(message.getInformation(), cloneStamp);
+        FIFOMessage fifoMessage = new FIFOMessage(message.getInformation(), baseTimeStamp);
         // get all participants and send message to all of them
         List<Participant> receivers = this.getGroup().getParticipants();
         Channel reliableChannel = Channel.getReliableChannelInstance();

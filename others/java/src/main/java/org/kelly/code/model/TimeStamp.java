@@ -1,11 +1,13 @@
 package org.kelly.code.model;
 
+import java.io.Serializable;
+
 /***
  * this class simulate the logic clock timestamp which
  * contains id and tick represent the participant id 
  * and time tick of the participant
  */
-public class TimeStamp {
+public class TimeStamp implements Serializable {
     private int id;
     private int tick;
 

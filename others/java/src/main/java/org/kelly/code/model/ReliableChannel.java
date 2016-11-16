@@ -12,7 +12,11 @@ public class ReliableChannel extends Channel {
      */
     @Override
     public void sendMessage(Participant sender, Message message, Participant receiver) {
-        ReliableChannelThread handleThread = new ReliableChannelThread(sender, message, receiver);
+        // always generate a clone message to send to receiver
+        // to prevent different threads modify on the same message instance
+        // this simulate the real case in network environment
+        Message cloneMessage = (Message)SimulateUtil.clone(message);
+        ReliableChannelThread handleThread = new ReliableChannelThread(sender, cloneMessage, receiver);
         handleThread.start();
     }
 }

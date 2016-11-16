@@ -159,38 +159,40 @@ class TotalOrderParticipantReceiveThread extends Thread {
         // set the priority and mark is as undeliverable then add into the queues
         int newPriority = receiver.getMaxPriorityInWaitQueuesToDeliver() + 1;
 
-        // generate a clone message to prevent multi threads modify on the same instance of message
-        TotalOrderMessage cloneMessage = new TotalOrderMessage(message.getInformation());
-        cloneMessage.setId(message.getId());
-        cloneMessage.setSenderId(sender.getId());
-        cloneMessage.setPriority(newPriority);
-        cloneMessage.setDeliverable(false);
-        receiver.putIntoWaitQueuesToDeliver(cloneMessage);
+        // this message is a clone from the channel, so
+        // don't need to worry about that multi threads
+        // modify on the same instance
+//        message.setSenderId(sender.getId());
+        message.setPriority(newPriority);
+        message.setDeliverable(false);
+        receiver.putIntoWaitQueuesToDeliver(message);
 
         // send it back to sender
-        cloneMessage.setStep(2);
+        message.setStep(2);
         Channel reliableChannel = Channel.getReliableChannelInstance();
-        reliableChannel.sendMessage(receiver, cloneMessage, sender);
+        reliableChannel.sendMessage(receiver, message, sender);
     }
 
     private void handleStep2Message() {
-        // generate a clone message to prevent multi threads modify on the same instance of message
+/*        // generate a clone message to prevent multi threads modify on the same instance of message
         TotalOrderMessage cloneMessage = new TotalOrderMessage(message.getInformation());
         cloneMessage.setId(message.getId());
         cloneMessage.setSenderId(receiver.getId()); // this message is on step2, the receiver is the orignal sender
         cloneMessage.setPriority(message.getPriority());
         receiver.putIntoWaitQueuesToSend(cloneMessage);
+*/
+        receiver.putIntoWaitQueuesToSend(message);
 
         // check if all messages are feedback
-        if(receiver.getSizeOfWaitQueuesToSend(cloneMessage.getId()) == receiver.getGroup().getNumberOfParticipants()) {
+        if(receiver.getSizeOfWaitQueuesToSend(message.getId()) == receiver.getGroup().getNumberOfParticipants()) {
             // current thread is the final thread which get the last feedback of messges 
-            cloneMessage.setPriority(receiver.getMaxPriorityInWaitQueuesToSend(message.getId()));
-            cloneMessage.setStep(3);
+            message.setPriority(receiver.getMaxPriorityInWaitQueuesToSend(message.getId()));
+            message.setStep(3);
             // get all participants and send message to all of them
             List<Participant> receivers = receiver.getGroup().getParticipants();
             Channel reliableChannel = Channel.getReliableChannelInstance();
             for(Participant receiver: receivers) {
-                reliableChannel.sendMessage(receiver, cloneMessage, sender); // this step, the receiver is the original sender
+                reliableChannel.sendMessage(receiver, message, sender); // this step, the receiver is the original sender
             }
         }
     }
