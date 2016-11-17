@@ -34,7 +34,7 @@ public class TotalOrderMulticastTest
 
     public void testMulticast() {
         // construct the group and participants
-        int participantNumber = 2;
+        int participantNumber = 8;
         Group group = new Group();
         for(int i = 0;i < participantNumber;i++) {
             TotalOrderParticipant participant = new TotalOrderParticipant();
@@ -44,7 +44,7 @@ public class TotalOrderMulticastTest
         }
 
         // multicast messages for each participant
-        int messageNumber = 4;
+        int messageNumber = 5;
         for(Participant sender: group.getParticipants()) {
             for(int i = 0;i < messageNumber;i++) {
                 Message message = new Message();
@@ -61,31 +61,31 @@ public class TotalOrderMulticastTest
             ie.printStackTrace();
         }
 
-/*        // check if the delivering order is the same as sending order
-        for(Participant receiver: group.getParticipants()) {
-            for(Participant sender: group.getParticipants()) {
-                // get all deliveredMessage from this sender
-                List<Message> deliveredMessagesOfTheSender = new ArrayList<Message>();
-
-                Vector<Message> allDeliveredMessages = receiver.getDeliveredMessages();
-                for(Message message: allDeliveredMessages) {
-                    FIFOMessage fifoMessage = (FIFOMessage)message;
-                    if(fifoMessage.getTimeStamp().getId() == sender.getId()) {
-                        deliveredMessagesOfTheSender.add(fifoMessage);
-                    }
+        // check if the delivering order are the same for any two pair of participants
+        List<Participant> participants = group.getParticipants();
+        for(int i = 0;i < participants.size();i++) {
+            Participant par1 = participants.get(i);
+            for(int j = i + 1; j < participants.size();j++) {
+                Participant par2 = participants.get(j);
+                Vector<Message> deliveredMessages1 = par1.getDeliveredMessages();
+                Vector<Message> deliveredMessages2 = par2.getDeliveredMessages();
+                assertTrue(deliveredMessages1 != null);
+                assertTrue(deliveredMessages2 != null);
+                assertTrue(deliveredMessages1.size() == deliveredMessages2.size());
+                for(int k = 0;k < deliveredMessages1.size();k++) {
+                    TotalOrderMessage totalOrderMessage1 = (TotalOrderMessage)deliveredMessages1.get(k);
+                    TotalOrderMessage totalOrderMessage2 = (TotalOrderMessage)deliveredMessages2.get(k);
+                    assertTrue(totalOrderMessage1.getId() == totalOrderMessage2.getId());
                 }
-                // assert the deliver orders are right
-                for(int i = 0;i < messageNumber;i++) {
-                    Message message = deliveredMessagesOfTheSender.get(i);
-                    assertTrue(message.getInformation().equals("message" + i));
-                } 
-            } 
+            }
         }
-*/
+
+
+/*
         System.out.println("print participants:");
         for(Participant participant: group.getParticipants()) {
             System.out.println(participant);
         }
-
+*/
     }
 }

@@ -22,9 +22,11 @@ public class TotalOrderMessage extends Message {
     private int step; // to indicate the message is in which step for the Total ordered algorithm
     private int priority;
     private boolean deliverable;
+    private TimeStamp timeStamp;
 
-    public TotalOrderMessage(String inputInformation) {
+    public TotalOrderMessage(String inputInformation, TimeStamp inputTimeStamp) {
         this.setInformation(inputInformation);
+        timeStamp = inputTimeStamp;
     }
 
     public int getId() {
@@ -67,13 +69,23 @@ public class TotalOrderMessage extends Message {
         deliverable = inputDeliverable;
     }
 
+    public TimeStamp getTimeStamp() {
+        return timeStamp;
+    }
+
+    public void setTimeStamp(TimeStamp inputTimeStamp) {
+        timeStamp = inputTimeStamp;
+    }
+
     @Override
     public String toString() {
         String str = "TotalOrderMessage: information = " + super.getInformation();
+        str += ", id = " + id;
         str += ", senderId = " + senderId;
         str += ", step = " + step;
         str += ", priority = " + priority;
         str += ", deliverable = " + deliverable;
+        str += ", timeStamp = " + timeStamp;
         return str;
     }
 }

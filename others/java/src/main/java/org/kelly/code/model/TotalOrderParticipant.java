@@ -101,9 +101,18 @@ public class TotalOrderParticipant extends Participant {
         return maxPriority;
     }
 
+    private TimeStamp baseTimeStamp = null;
     @Override
     public void multiCastMessage(Message message) {
-        TotalOrderMessage totalOrderMessage = new TotalOrderMessage(message.getInformation());
+        // init the time stamp
+        if(baseTimeStamp == null) {
+            baseTimeStamp = new TimeStamp(this.getId(), 0);
+        }
+
+        // each time of multicast, increase the tick generate
+        baseTimeStamp.tickIncrease();
+
+        TotalOrderMessage totalOrderMessage = new TotalOrderMessage(message.getInformation(), baseTimeStamp);
         totalOrderMessage.setId(SimulateUtil.getRandomIntBetween(0, Integer.MAX_VALUE));
         totalOrderMessage.setStep(1);
         totalOrderMessage.setSenderId(this.getId());
@@ -182,7 +191,7 @@ class TotalOrderParticipantReceiveThread extends Thread {
     private void handleStep2Message() {
         receiver.putIntoWaitQueuesToSend(message);
 
-        // check if all messages are feedback
+        // check if all messages are feedback as step 2
         if(receiver.getSizeOfWaitQueuesToSend(message.getId()) == receiver.getGroup().getNumberOfParticipants()) {
             // current thread is the final thread which get the last feedback of messages 
             message.setPriority(receiver.getMaxPriorityInWaitQueuesToSend(message.getId()));
@@ -190,8 +199,8 @@ class TotalOrderParticipantReceiveThread extends Thread {
             // get all participants and send message to all of them
             List<Participant> receivers = receiver.getGroup().getParticipants();
             Channel reliableChannel = Channel.getReliableChannelInstance();
-            for(Participant receiver: receivers) {
-                reliableChannel.sendMessage(receiver, message, sender); // this step, the receiver is the original sender
+            for(Participant parReceiver: receivers) {
+                reliableChannel.sendMessage(receiver, message, parReceiver); // this step, the receiver is the original sender
             }
         }
     }
@@ -226,9 +235,14 @@ class TotalOrderParticipantReceiveThread extends Thread {
                 if(priority1 != priority2) {
                     return Integer.valueOf(priority1).compareTo(priority2);
                 }
-                else {
+                else if(totalOrderMessage1.getSenderId() != totalOrderMessage2.getSenderId()){
                     // tie breaking by sender id
                     return Integer.valueOf(totalOrderMessage1.getSenderId()).compareTo(totalOrderMessage2.getSenderId());
+                }
+                else {
+                    // it is possbile that the two messages with the same priority are from the same sender
+                    // in this case, we use the timestamp.tick to break the tie
+                    return Integer.valueOf(totalOrderMessage1.getTimeStamp().getTick()).compareTo(totalOrderMessage2.getTimeStamp().getTick());
                 }
             }
         });
