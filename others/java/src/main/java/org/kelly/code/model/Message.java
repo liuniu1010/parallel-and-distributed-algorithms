@@ -4,6 +4,7 @@ import java.io.Serializable;
 
 public class Message implements Serializable {
     private String information;
+    private Probe probe;
 
     public String getInformation() {
         return information;
@@ -11,5 +12,13 @@ public class Message implements Serializable {
 
     public void setInformation(String inputInformation) {
         information = inputInformation;
+    }
+
+    public Probe getProbe() {
+        return probe;
+    }
+
+    public void setProbe(Probe inputProbe) {
+        probe = inputProbe;
     }
 }
