@@ -53,14 +53,18 @@ public class FIFOMulticastTest
             }
         }
 
-
+/*
         try {
             Thread.sleep(5000);
         }
         catch(InterruptedException ie) {
             ie.printStackTrace();
         }
-
+*/
+        for(Participant participant: group.getParticipants()) {
+            participant.waitUntilTerminate();
+        }
+        
         // check if the delivering order is the same as sending order
         for(Participant receiver: group.getParticipants()) {
             for(Participant sender: group.getParticipants()) {

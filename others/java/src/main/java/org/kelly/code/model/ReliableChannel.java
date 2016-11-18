@@ -16,17 +16,17 @@ public class ReliableChannel extends Channel {
         // to prevent different threads modify on the same message instance
         // this simulate the real case in network environment
         Message cloneMessage = (Message)SimulateUtil.clone(message);
-        ReliableChannelThread handleThread = new ReliableChannelThread(sender, cloneMessage, receiver);
+        ReliableChannelSendMessageThread handleThread = new ReliableChannelSendMessageThread(sender, cloneMessage, receiver);
         handleThread.start();
     }
 }
 
-class ReliableChannelThread extends Thread {
+class ReliableChannelSendMessageThread extends Thread {
     private Participant sender;
     private Participant receiver;
     private Message message;
 
-    public ReliableChannelThread(Participant inputSender, Message inputMessage, Participant inputReceiver) {
+    public ReliableChannelSendMessageThread(Participant inputSender, Message inputMessage, Participant inputReceiver) {
         sender = inputSender;
         message = inputMessage;
         receiver = inputReceiver;

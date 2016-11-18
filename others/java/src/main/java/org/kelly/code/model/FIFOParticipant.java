@@ -16,7 +16,7 @@ public class FIFOParticipant extends Participant {
     @Override
     public void receiveMessage(Participant sender, Message message) {
         this.recordReceivedMessage(message);
-        FIFOParticipantReceiveThread receiveThread = new FIFOParticipantReceiveThread((FIFOParticipant)sender, (FIFOMessage)message, this);
+        FIFOParticipantReceiveThread receiveThread = new FIFOParticipantReceiveThread((FIFOParticipant)sender, message, this);
         receiveThread.start();
     }
 
@@ -68,6 +68,7 @@ public class FIFOParticipant extends Participant {
 
 
     private TimeStamp baseTimeStamp = null;
+    private int CONST_POWERVALUE_INDEX = 100;
     @Override
     public void multiCastMessage(Message message) {
         // init the time stamp
@@ -79,11 +80,15 @@ public class FIFOParticipant extends Participant {
         baseTimeStamp.tickIncrease();
  
         FIFOMessage fifoMessage = new FIFOMessage(message.getInformation(), baseTimeStamp);
+        Probe probe = new Probe(new PowerValue(CONST_POWERVALUE_INDEX));
+        probe.addHopId(this.getId());
+        fifoMessage.setProbe(probe);
         // get all participants and send message to all of them
         List<Participant> receivers = this.getGroup().getParticipants();
         Channel reliableChannel = Channel.getReliableChannelInstance();
         for(Participant receiver: receivers) {
             reliableChannel.sendMessage(this, fifoMessage, receiver);
+            this.recordGeneratedProbes(probe);
         }
 
         // record the message as sent
@@ -93,10 +98,10 @@ public class FIFOParticipant extends Participant {
 
 class FIFOParticipantReceiveThread extends Thread {
     private FIFOParticipant sender;
-    private FIFOMessage message;
+    private Message message;
     private FIFOParticipant receiver;
 
-    public FIFOParticipantReceiveThread(FIFOParticipant inputSender, FIFOMessage inputMessage, FIFOParticipant inputReceiver) {
+    public FIFOParticipantReceiveThread(FIFOParticipant inputSender, Message inputMessage, FIFOParticipant inputReceiver) {
         sender = inputSender;
         message = inputMessage;
         receiver = inputReceiver;
@@ -105,8 +110,18 @@ class FIFOParticipantReceiveThread extends Thread {
     @Override
     public void run() {
         synchronized(receiver) {
-            handleReceivedMessage();
+            if(message instanceof FIFOMessage) {
+                handleReceivedMessage();
+            }
+            else if(message instanceof ReturnProbeMessage) {
+                handleReturnProbeMessage();
+            }
         }
+    }
+
+    private void handleReturnProbeMessage() {
+        ReturnProbeMessage returnProbeMessage = (ReturnProbeMessage)message;
+        receiver.recordReturnedProbes(returnProbeMessage.getProbe());
     }
 
     /***
@@ -120,6 +135,7 @@ class FIFOParticipantReceiveThread extends Thread {
         receiver.putIntoWaitQueuesToDeliver(sender.getId(), message);
         Vector<Message> messages = receiver.getWaitQueueMessagesToDeliver(sender.getId());
 
+        ReliableChannel reliableChannel = (ReliableChannel)Channel.getReliableChannelInstance();
         // loop the cached messages to find the message which 
         // should be delivered
         while(!messages.isEmpty()) {
@@ -138,6 +154,11 @@ class FIFOParticipantReceiveThread extends Thread {
                 receiver.updateLastSentTick(sender.getId(), messageToFind.getTimeStamp().getTick());
                 receiver.removeFromWaitQueuesToDeliver(sender.getId(), messageToFind);
                 messages = receiver.getWaitQueueMessagesToDeliver(sender.getId());
+
+                // send back the probe
+                ReturnProbeMessage returnProbeMessage = new ReturnProbeMessage();
+                returnProbeMessage.setProbe(messageToFind.getProbe());
+                reliableChannel.sendMessage(receiver, returnProbeMessage, sender);
 
                 // the last send tick was increased, so the cached messages
                 // should be loop again to find the next one 

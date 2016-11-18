@@ -22,7 +22,7 @@ public class Probe implements Serializable {
         return weight;
     }
 
-    public void addHopIdIntoSendPath(int hopId) {
+    public void addHopId(int hopId) {
         sendPath.add(hopId); 
     }
 
