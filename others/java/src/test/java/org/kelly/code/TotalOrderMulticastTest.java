@@ -53,14 +53,19 @@ public class TotalOrderMulticastTest
             }
         }
 
-
+/*
         try {
             Thread.sleep(5000);
         }
         catch(InterruptedException ie) {
             ie.printStackTrace();
         }
+*/
 
+        for(Participant participant: group.getParticipants()) {
+            participant.waitUntilTerminate();
+        }
+ 
         // check if the delivering order are the same for any two pair of participants
         List<Participant> participants = group.getParticipants();
         for(int i = 0;i < participants.size();i++) {

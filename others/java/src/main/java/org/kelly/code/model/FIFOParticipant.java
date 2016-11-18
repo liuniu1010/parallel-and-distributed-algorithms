@@ -83,6 +83,7 @@ public class FIFOParticipant extends Participant {
         Probe probe = new Probe(new PowerValue(CONST_POWERVALUE_INDEX));
         probe.addHopId(this.getId());
         fifoMessage.setProbe(probe);
+
         // get all participants and send message to all of them
         List<Participant> receivers = this.getGroup().getParticipants();
         Channel reliableChannel = Channel.getReliableChannelInstance();

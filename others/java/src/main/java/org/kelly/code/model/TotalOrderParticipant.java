@@ -20,13 +20,16 @@ import org.kelly.code.util.SimulateUtil;
  * 
  * the second step, on receiving the step one's 
  * message, the receiver assign a priority for the message,
+ * put the message into deliver queue,
  * mark is as undeliverable, then send it back to the sender
  * 
  * the third step, on receiving step two's backing
  * message, the sender re set the priority as the max one
- * and multicast it again. when receiver got step three's message
- * it will mark it as deliverable and put it into deliver queue
- * and deliver it
+ * and multicast it again,
+ *
+ * when receiver got step three's message
+ * it will mark it as deliverable, all messages in deliver
+ * queue with deliverable will be delivered one by one
  */
 public class TotalOrderParticipant extends Participant {
     /***
@@ -36,7 +39,7 @@ public class TotalOrderParticipant extends Participant {
     @Override
     public void receiveMessage(Participant sender, Message message) {
         this.recordReceivedMessage(message);
-        TotalOrderParticipantReceiveThread receiveThread = new TotalOrderParticipantReceiveThread((TotalOrderParticipant)sender, (TotalOrderMessage)message, this);
+        TotalOrderParticipantReceiveThread receiveThread = new TotalOrderParticipantReceiveThread((TotalOrderParticipant)sender, message, this);
         receiveThread.start();
     }
 
@@ -102,6 +105,7 @@ public class TotalOrderParticipant extends Participant {
     }
 
     private TimeStamp baseTimeStamp = null;
+    private int CONST_POWERVALUE_INDEX = 100;
     @Override
     public void multiCastMessage(Message message) {
         // init the time stamp
@@ -117,11 +121,16 @@ public class TotalOrderParticipant extends Participant {
         totalOrderMessage.setStep(1);
         totalOrderMessage.setSenderId(this.getId());
 
+        Probe probe = new Probe(new PowerValue(CONST_POWERVALUE_INDEX));
+        probe.addHopId(this.getId());
+        totalOrderMessage.setProbe(probe);
+
         // get all participants and send message to all of them
         List<Participant> receivers = this.getGroup().getParticipants();
         Channel reliableChannel = Channel.getReliableChannelInstance();
         for(Participant receiver: receivers) {
             reliableChannel.sendMessage(this, totalOrderMessage, receiver);
+            this.recordGeneratedProbes(probe);
         }
 
         // record the message as sent
@@ -131,10 +140,10 @@ public class TotalOrderParticipant extends Participant {
 
 class TotalOrderParticipantReceiveThread extends Thread {
     private TotalOrderParticipant sender;
-    private TotalOrderMessage message;
+    private Message message;
     private TotalOrderParticipant receiver;
 
-    public TotalOrderParticipantReceiveThread(TotalOrderParticipant inputSender, TotalOrderMessage inputMessage, TotalOrderParticipant inputReceiver) {
+    public TotalOrderParticipantReceiveThread(TotalOrderParticipant inputSender, Message inputMessage, TotalOrderParticipant inputReceiver) {
         sender = inputSender;
         message = inputMessage;
         receiver = inputReceiver;
@@ -149,8 +158,18 @@ class TotalOrderParticipantReceiveThread extends Thread {
          * action
          */
         synchronized(receiver) {
-            handleReceivedMessage();
+            if(message instanceof TotalOrderMessage) {
+                handleReceivedMessage();
+            }
+            else if(message instanceof ReturnProbeMessage) {
+                handleReturnProbeMessage();
+            }
         }
+    }
+
+    private void handleReturnProbeMessage() {
+        ReturnProbeMessage returnProbeMessage = (ReturnProbeMessage)message;
+        receiver.recordReturnedProbes(returnProbeMessage.getProbe());
     }
 
     /***
@@ -160,57 +179,61 @@ class TotalOrderParticipantReceiveThread extends Thread {
      * order must be the same as all other receivers
      */
     private void handleReceivedMessage() {
-        if(message.getStep() == 1) {
+        TotalOrderMessage totalOrderMessage = (TotalOrderMessage)message;
+        if(totalOrderMessage.getStep() == 1) {
             handleStep1Message();
         }
-        else if(message.getStep() == 2) {
+        else if(totalOrderMessage.getStep() == 2) {
             handleStep2Message();
         }
-        else if(message.getStep() == 3) {
+        else if(totalOrderMessage.getStep() == 3) {
             handleStep3Message();
         }
     }
 
     private void handleStep1Message() {
+        TotalOrderMessage totalOrderMessage = (TotalOrderMessage)message;
         // set the priority and mark is as undeliverable then add into the queues
         int newPriority = receiver.getMaxPriorityInWaitQueuesToDeliver() + 1;
 
         // this message is a clone from the channel, so
         // don't need to worry about that multi threads
         // modify on the same instance
-        message.setPriority(newPriority);
-        message.setDeliverable(false);
-        receiver.putIntoWaitQueuesToDeliver(message);
+        totalOrderMessage.setPriority(newPriority);
+        totalOrderMessage.setDeliverable(false);
+        receiver.putIntoWaitQueuesToDeliver(totalOrderMessage);
 
         // send it back to sender
-        message.setStep(2);
+        totalOrderMessage.setStep(2);
         Channel reliableChannel = Channel.getReliableChannelInstance();
-        reliableChannel.sendMessage(receiver, message, sender);
+        reliableChannel.sendMessage(receiver, totalOrderMessage, sender);
     }
 
     private void handleStep2Message() {
-        receiver.putIntoWaitQueuesToSend(message);
+        TotalOrderMessage totalOrderMessage = (TotalOrderMessage)message;
+        receiver.putIntoWaitQueuesToSend(totalOrderMessage);
 
         // check if all messages are feedback as step 2
-        if(receiver.getSizeOfWaitQueuesToSend(message.getId()) == receiver.getGroup().getNumberOfParticipants()) {
+        if(receiver.getSizeOfWaitQueuesToSend(totalOrderMessage.getId()) == receiver.getGroup().getNumberOfParticipants()) {
             // current thread is the final thread which get the last feedback of messages 
-            message.setPriority(receiver.getMaxPriorityInWaitQueuesToSend(message.getId()));
-            message.setStep(3);
+            totalOrderMessage.setPriority(receiver.getMaxPriorityInWaitQueuesToSend(totalOrderMessage.getId()));
+            totalOrderMessage.setStep(3);
             // get all participants and send message to all of them
             List<Participant> receivers = receiver.getGroup().getParticipants();
             Channel reliableChannel = Channel.getReliableChannelInstance();
             for(Participant parReceiver: receivers) {
-                reliableChannel.sendMessage(receiver, message, parReceiver); // this step, the receiver is the original sender
+                reliableChannel.sendMessage(receiver, totalOrderMessage, parReceiver); // this step, the receiver is the original sender
             }
         }
     }
 
     private void handleStep3Message() {
+        TotalOrderMessage totalOrderMessage = (TotalOrderMessage)message;
         Vector<Message> messages = receiver.getWaitQueueMessagesToDeliver();
         // find the message in queue of the same id
         TotalOrderMessage messageToFind = null;
         for(Message messageInQueue: messages) {
-            if(((TotalOrderMessage)messageInQueue).getId() == message.getId()) {
+            if(((TotalOrderMessage)messageInQueue).getId() == totalOrderMessage.getId()) {
                 messageToFind = (TotalOrderMessage)messageInQueue;
                 break;
             }
@@ -223,7 +246,7 @@ class TotalOrderParticipantReceiveThread extends Thread {
             throw new RuntimeException("no messages in the wait to deliver queue with the id of the new received message which step = 3");
         }
 
-        messageToFind.setPriority(message.getPriority());
+        messageToFind.setPriority(totalOrderMessage.getPriority());
         messageToFind.setDeliverable(true);
 
         Collections.sort(messages, new Comparator<Message>() {
@@ -247,11 +270,18 @@ class TotalOrderParticipantReceiveThread extends Thread {
             }
         });
 
+        ReliableChannel reliableChannel = (ReliableChannel)Channel.getReliableChannelInstance();
         while(!messages.isEmpty()) {
             TotalOrderMessage firstMessage = (TotalOrderMessage)messages.get(0);
             if(firstMessage.isDeliverable()){
                 receiver.deliverMessage(firstMessage);
                 receiver.removeFromWaitQueuesToDeliver(firstMessage);
+
+                // send back the probe
+                ReturnProbeMessage returnProbeMessage = new ReturnProbeMessage();
+                returnProbeMessage.setProbe(firstMessage.getProbe());
+                Participant senderOfTheFirstMessage = receiver.getGroup().getParticipant(firstMessage.getSenderId());
+                reliableChannel.sendMessage(receiver, returnProbeMessage, senderOfTheFirstMessage);
                 continue;
             }
             else{

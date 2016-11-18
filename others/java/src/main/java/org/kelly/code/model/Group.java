@@ -31,4 +31,15 @@ public class Group {
     public int getNumberOfParticipants() {
         return (participants == null)?0:participants.size();
     }
+
+    public Participant getParticipant(int participantId) {
+        Participant participantToFind = null;
+        for(Participant participant: participants) {
+            if(participant.getId() == participantId) {
+                participantToFind = participant;
+                break;
+            }
+        }
+        return participantToFind;
+    }
 }
