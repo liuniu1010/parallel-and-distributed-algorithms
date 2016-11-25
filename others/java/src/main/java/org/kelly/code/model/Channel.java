@@ -26,4 +26,24 @@ public abstract class Channel {
 
         return reliableChannelInstance;
     }
+
+    private static Channel unReliableChannelInstance = null;
+    public static Channel getUnReliableChannelInstance() {
+        if(unReliableChannelInstance == null) {
+            try{
+                unReliableChannelInstance = (Channel)Class.forName("org.kelly.code.model.UnReliableChannel").newInstance();
+            }
+            catch(ClassNotFoundException cnfex) {
+                cnfex.printStackTrace();
+            }
+            catch(InstantiationException iex) {
+                iex.printStackTrace();
+            }
+            catch(IllegalAccessException iaex) {
+                iaex.printStackTrace();
+            }
+        }
+
+        return reliableChannelInstance;
+    }
 }

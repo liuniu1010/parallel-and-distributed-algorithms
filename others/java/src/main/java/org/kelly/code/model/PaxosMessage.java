@@ -10,6 +10,12 @@ public class PaxosMessage extends Message {
     private int N;
     private int V;
 
+    public PaxosMessage(int inputType, int inputN, int inputV) {
+        type = inputType;
+        N = inputN;
+        V = inputV;
+    }
+
     public int getType() {
         return type;
     }
