@@ -38,9 +38,14 @@ public class PaxosParticipant extends Participant {
         }
     }
 
-    public void startPropose(int proposedValue) {
+    private int proposedValue = -1;
+    public void startPropose(int inputProposedValue) {
+        proposedValue = inputProposedValue; // record it but not set in message in the first step
         int initialN = SimulateUtil.getRandomIntBetween(0, 5);
-        PaxosMessage paxosMessage = new PaxosMessage(PaxosMessage.MESSAGE_TYPE_PREPARE_REQUEST, initialN, proposedValue);
+        PaxosMessage paxosMessage = new PaxosMessage(PaxosMessage.MESSAGE_TYPE_PREPARE_REQUEST);
+        paxosMessage.setN(initialN);
+        // at this step of prepare request, the proposed value does
+        // not be set in the message, only initialN be set
         multiCastMessage(paxosMessage);
     }
 
@@ -53,13 +58,13 @@ public class PaxosParticipant extends Participant {
         maxNReceived = inputMaxNReceived;
     }
 
-    private int valueAccepted = -1;
-    public int getValueAccepted() {
-        return valueAccepted;
+    private PaxosMessage messageAccepted;
+    public PaxosMessage getMessageAccepted() {
+        return messageAccepted;
     }
 
-    public void setValueAccepted(int inputValueAccepted) {
-        valueAccepted = inputValueAccepted;
+    public void setMessageAccepted(PaxosMessage inputPaxosMessage) {
+        messageAccepted = inputPaxosMessage;
     }
 }
 
@@ -92,7 +97,22 @@ class PaxosParticipantReceiveThread extends Thread {
 
     private void handlePrePareRequest() {
         PaxosMessage paxosMessage = (PaxosMessage)message;
-        
+        PaxosMessage messageAccepted = receiver.getMessageAccepted();
+        ReliableChannel channel = (ReliableChannel)Channel.getReliableChannelInstance();
+
+        if(messageAccepted == null) {
+            // no message accepted before, so current message will be 
+            // accepted
+            PaxosMessage ackMessage = new PaxosMessage(PaxosMessage.MESSAGE_TYPE_ACK);
+            ackMessage.setN(paxosMessage.getN());
+            channel.sendMessage(receiver, ackMessage, sender); // send the ack back
+
+            receiver.setMessageAccepted(paxosMessage); // record it as accepted message
+        }
+        else {
+            // there is message accepted before, so compare them first
+            // add code here next time
+        } 
     }
 
     private void handleAck() {
