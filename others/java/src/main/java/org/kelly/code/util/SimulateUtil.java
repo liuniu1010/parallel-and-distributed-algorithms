@@ -12,6 +12,7 @@ import java.util.Comparator;
 import java.util.Random;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.kelly.code.model.*;
 
@@ -114,5 +115,15 @@ public class SimulateUtil {
         powerValues1.add(powerValue);
 
         return isEquals(powerValues1, powerValues);
+    }
+
+    private static AtomicInteger baseN = new AtomicInteger(0);
+    /***
+     * this method should gaurantee each time return
+     * a different value, it can improve performance
+     * of paxos algorithm if the value increases each time
+     */ 
+    public static int acquireNForPaxos() {
+        return baseN.addAndGet(1);
     }
 }
