@@ -33,9 +33,9 @@ public class PaxosParticipant extends Participant {
     public void multiCastMessage(Message message) {
         // get all participants and send message to all of them
         List<Participant> receivers = this.getGroup().getParticipants();
-        Channel reliableChannel = Channel.getReliableChannelInstance();
+        Channel unReliableChannel = Channel.getUnReliableChannelInstance();
         for(Participant receiver: receivers) {
-            reliableChannel.sendMessage(this, message, receiver);
+            unReliableChannel.sendMessage(this, message, receiver);
         }
     }
 
@@ -56,20 +56,23 @@ public class PaxosParticipant extends Participant {
 
     public void startPropose() {
         currentN = SimulateUtil.acquireNForPaxos();
-        PaxosMessage paxosMessage = new PaxosMessage(PaxosMessage.MESSAGE_TYPE_PREPARE_REQUEST);
-        paxosMessage.setN(currentN);
+        PaxosParticipantMonitorThread monitorThread = new PaxosParticipantMonitorThread(this);
+        monitorThread.start();
+/*        PaxosMessage prepareRequest = new PaxosMessage(PaxosMessage.MESSAGE_TYPE_PREPARE_REQUEST);
+        prepareRequest.setN(currentN);
         // at this step of prepare request, the proposed value does
         // not be set in the message, only initialN be set
-        multiCastMessage(paxosMessage);
+        multiCastMessage(prepareRequest);
+*/
     }
 
-    private Vector<PaxosMessage> receivedAcks = new Vector<PaxosMessage>();
-    public Vector<PaxosMessage> getReceivedAcks() {
-        return receivedAcks;
+    private Vector<PaxosMessage> receivedFeedbacks = new Vector<PaxosMessage>();
+    public Vector<PaxosMessage> getReceivedFeedbacks() {
+        return receivedFeedbacks;
     }
 
-    public void addReceivedAck(PaxosMessage message) {
-        receivedAcks.add(message);
+    public void addReceivedFeedback(PaxosMessage message) {
+        receivedFeedbacks.add(message);
     }
 
 
@@ -80,6 +83,57 @@ public class PaxosParticipant extends Participant {
 
     public void setMessageAccepted(PaxosMessage inputPaxosMessage) {
         messageAccepted = inputPaxosMessage;
+    }
+
+    public static int STAGE_PREPARE_REQUEST_SENT = 1;
+    public static int STAGE_ACCEPT_REQUEST_SENT = 2;
+    private int stage = -1;
+
+    public int getStage() {
+        return stage;
+    }
+
+    public void setStage(int inputStage) {
+        stage = inputStage;
+    }
+}
+
+class PaxosParticipantMonitorThread extends Thread {
+    private int timeout = 2000;  // every 2 seconds check once
+    private PaxosParticipant self;
+
+    public PaxosParticipantMonitorThread(PaxosParticipant inputSelf) {
+        self = inputSelf;
+    }
+
+    @Override
+    public void run() {
+        try {
+            synchronized(self) {
+                checkAndRun();
+            }
+            Thread.sleep(timeout);
+        }
+        catch(InterruptedException iex) {
+            iex.printStackTrace();
+            throw new RuntimeException(iex);
+        }
+    }
+
+    private void checkAndRun() {
+        if(self.getStage() < 0) {
+            startPropose();
+        }
+        // add code here next time 
+    }
+
+    private void startPropose() {
+        PaxosMessage prepareRequest = new PaxosMessage(PaxosMessage.MESSAGE_TYPE_PREPARE_REQUEST);
+        prepareRequest.setN(self.getCurrentN());
+        // at this step of prepare request, the proposed value does
+        // not be set in the message, only initialN be set
+        self.multiCastMessage(prepareRequest);
+        self.setStage(PaxosParticipant.STAGE_PREPARE_REQUEST_SENT);
     }
 }
 
@@ -107,19 +161,23 @@ class PaxosParticipantReceiveThread extends Thread {
             else if(paxosMessage.getType() == PaxosMessage.MESSAGE_TYPE_ACCEPT_REQUEST) {
                 handleAcceptRequest();
             }
+            else if(paxosMessage.getType() == PaxosMessage.MESSAGE_TYPE_ACCEPT) {
+                handleAccept();
+            }
         }
     }
 
     private void handlePrePareRequest() {
         PaxosMessage paxosMessage = (PaxosMessage)message;
         PaxosMessage messageAccepted = receiver.getMessageAccepted();
-        ReliableChannel channel = (ReliableChannel)Channel.getReliableChannelInstance();
+        UnReliableChannel channel = (UnReliableChannel)Channel.getUnReliableChannelInstance();
 
         if(messageAccepted == null) {
             // no message accepted before, so current message will be 
             // accepted
             PaxosMessage ackMessage = new PaxosMessage(PaxosMessage.MESSAGE_TYPE_ACK);
             ackMessage.setN(paxosMessage.getN());
+            ackMessage.setSenderId(receiver.getId());
             channel.sendMessage(receiver, ackMessage, sender); // send the ack back
 
             receiver.setMessageAccepted(paxosMessage); // record it as accepted message
@@ -134,6 +192,7 @@ class PaxosParticipantReceiveThread extends Thread {
                     // accepted message as the new message
                     PaxosMessage ackMessage = new PaxosMessage(PaxosMessage.MESSAGE_TYPE_ACK);
                     ackMessage.setN(paxosMessage.getN());
+                    ackMessage.setSenderId(receiver.getId());
                     channel.sendMessage(receiver, ackMessage, sender);
 
                     // update new accepted message
@@ -146,6 +205,7 @@ class PaxosParticipantReceiveThread extends Thread {
                     ackMessage.setN(paxosMessage.getN());
                     ackMessage.setAnotherN(messageAccepted.getN());
                     ackMessage.setAnotherV(messageAccepted.getV());
+                    ackMessage.setSenderId(receiver.getId());
                     channel.sendMessage(receiver, ackMessage, sender);
                     
                     // update new accepted message
@@ -155,22 +215,38 @@ class PaxosParticipantReceiveThread extends Thread {
             }
             else { // paxosMessage.getN() < messageAccepted.getN(), the two N is impossbile to be equal
                 // nothing to do in this case
+                // a reject message can also be sent back to the proposer
+                // this can improve the performance, but the protocol is a bit more complex
+                // so in this implementation, just ignore the prepare request
             }
         } 
     }
 
     private void handleAck() {
         PaxosMessage paxosMessage = (PaxosMessage)message;
-        receiver.addReceivedAck(paxosMessage);
+        receiver.addReceivedFeedback(paxosMessage);
 
         // check if the number of acks exceed half of all participants
-        if(receiver.getReceivedAcks().size() * 2 > receiver.getGroup().getParticipants().size()) {
+        Vector<PaxosMessage> validAcks = new Vector<PaxosMessage>();
+
+        // only acks with the same N is valid acks
+        // because some very slow acks with a lower N might arrived just now
+        // these acks should be ignored.
+        for(PaxosMessage feedbackMessage: receiver.getReceivedFeedbacks()) {
+            if(feedbackMessage.getN() == receiver.getCurrentN()
+                && feedbackMessage.getType() == PaxosMessage.MESSAGE_TYPE_ACK) {
+
+                validAcks.add(feedbackMessage);
+            }
+        }
+
+        if(validAcks.size() * 2 > receiver.getGroup().getParticipants().size()) {
+            UnReliableChannel channel = (UnReliableChannel)Channel.getUnReliableChannelInstance();
             // find out the accepted value from the highest N in acks
             int ackValue = -1;
             int highestNinAcks = -1;
-            Vector<PaxosMessage> receivedAcks = receiver.getReceivedAcks();
             PaxosMessage messageToFind = null; // try to find out the message which contains value and the n is highest
-            for(PaxosMessage ack: receivedAcks) {
+            for(PaxosMessage ack: validAcks) {
                 if(ack.getAnotherV() < 0) {
                     continue;
                 }
@@ -185,21 +261,45 @@ class PaxosParticipantReceiveThread extends Thread {
                 // there does not exist accepted value, use the partiicpant's own proposed value
             }
 
-            // send out accept request
+            // send out accept request to those accepted pariticpant
             PaxosMessage acceptRequest = new PaxosMessage(PaxosMessage.MESSAGE_TYPE_ACCEPT_REQUEST);
             acceptRequest.setN(receiver.getCurrentN());
             acceptRequest.setV(receiver.getProposedValue());
+            for(PaxosMessage ack: validAcks) {
+                Participant destParticipant = receiver.getGroup().getParticipant(ack.getSenderId());
+                channel.sendMessage(receiver, acceptRequest, destParticipant);
+            }
 
-            receiver.multiCastMessage(acceptRequest);
+            receiver.setStage(PaxosParticipant.STAGE_ACCEPT_REQUEST_SENT);
         }
     }
 
     private void handleAcceptRequest() {
         PaxosMessage paxosMessage = (PaxosMessage)message;
-        PaxosMessage accept = new PaxosMessage(PaxosMessage.MESSAGE_TYPE_ACCEPT);
-        accept.setN(paxosMessage.getN());
-        accept.setV(paxosMessage.getV());
+        PaxosMessage messageAccepted = receiver.getMessageAccepted();
+        UnReliableChannel channel = (UnReliableChannel)Channel.getUnReliableChannelInstance();
 
-        receiver.multiCastMessage(accept);
+        if(messageAccepted == null) {
+            // it is impossible! it must be wrong at somewhere
+            throw new RuntimeException("didn't accept any prepare request, why does the accept request be sent to me: " + receiver.getId());
+        }
+
+        if(paxosMessage.getN() >= messageAccepted.getN()) {
+            // it is possible that the two N are equal
+            // because the two messages might be from the same sender
+            // so here we use >=
+
+            if(paxosMessage.getV() == messageAccepted.getV()) {
+                PaxosMessage acceptMessage = new PaxosMessage(PaxosMessage.MESSAGE_TYPE_ACCEPT);
+                acceptMessage.setN(paxosMessage.getN());
+                acceptMessage.setV(paxosMessage.getV());
+                channel.sendMessage(receiver, acceptMessage, sender);
+            }
+        }
+    }
+
+    private void handleAccept() {
+        PaxosMessage paxosMessage = (PaxosMessage)message;
+        receiver.addReceivedFeedback(paxosMessage);
     }
 }

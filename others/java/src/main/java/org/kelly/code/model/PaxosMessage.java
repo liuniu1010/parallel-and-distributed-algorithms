@@ -12,6 +12,8 @@ public class PaxosMessage extends Message {
     private int anotherN = -1; // indicate another proposer's number which has been accepted by current participant, -1 means invalid
     private int anotherV = -1; // indicate another proposer's value which has been accepted by current participant, -1 means invalid
 
+    private int senderId;
+
     public PaxosMessage(int inputType) {
         type = inputType;
         N = -1;
@@ -58,5 +60,13 @@ public class PaxosMessage extends Message {
 
     public void setAnotherV(int inputAnotherV) {
         anotherV = inputAnotherV;
+    }
+
+    public int getSenderId() {
+        return senderId;
+    }
+
+    public void setSenderId(int inputSenderId) {
+        senderId = inputSenderId;
     }
 }
