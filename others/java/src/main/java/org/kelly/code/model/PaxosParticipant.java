@@ -54,8 +54,11 @@ public class PaxosParticipant extends Participant {
         return currentN;
     }
 
+    public void setCurrentN(int inputN) {
+        currentN = inputN;
+    }
+
     public void startPropose() {
-        currentN = SimulateUtil.acquireNForPaxos();
         PaxosParticipantMonitorThread monitorThread = new PaxosParticipantMonitorThread(this);
         monitorThread.start();
 /*        PaxosMessage prepareRequest = new PaxosMessage(PaxosMessage.MESSAGE_TYPE_PREPARE_REQUEST);
@@ -85,8 +88,18 @@ public class PaxosParticipant extends Participant {
         messageAccepted = inputPaxosMessage;
     }
 
+    private int chosenValue = -1;
+    public int getChosenValue() {
+        return chosenValue;
+    }
+
+    public void setChosenValue(int inputValue) {
+        chosenValue = inputValue;
+    }
+
     public static int STAGE_PREPARE_REQUEST_SENT = 1;
     public static int STAGE_ACCEPT_REQUEST_SENT = 2;
+    public static int STAGE_END = 3;
     private int stage = -1;
 
     public int getStage() {
@@ -124,16 +137,76 @@ class PaxosParticipantMonitorThread extends Thread {
         if(self.getStage() < 0) {
             startPropose();
         }
-        // add code here next time 
+        else if(self.getStage() == PaxosParticipant.STAGE_PREPARE_REQUEST_SENT) {
+            checkAndStartNewRequest();
+        }
+        else if(self.getStage() == PaxosParticipant.STAGE_ACCEPT_REQUEST_SENT) {
+            checkAndStartLearning();
+        }
     }
 
     private void startPropose() {
+        self.setCurrentN(SimulateUtil.acquireNForPaxos());
         PaxosMessage prepareRequest = new PaxosMessage(PaxosMessage.MESSAGE_TYPE_PREPARE_REQUEST);
         prepareRequest.setN(self.getCurrentN());
         // at this step of prepare request, the proposed value does
         // not be set in the message, only initialN be set
         self.multiCastMessage(prepareRequest);
         self.setStage(PaxosParticipant.STAGE_PREPARE_REQUEST_SENT);
+    }
+
+    private void startLearning() {
+        PaxosMessage learningMessage = new PaxosMessage(PaxosMessage.MESSAGE_TYPE_LEARNING);
+        learningMessage.setV(self.getProposedValue());
+        self.multiCastMessage(learningMessage);
+    }
+
+    private void checkAndStartNewRequest() {
+        // check if the number of acks exceed half of all participants
+        Vector<PaxosMessage> validAcks = new Vector<PaxosMessage>();
+
+        // only acks with the same N is valid acks
+        // because some very slow acks with a lower N might arrived just now
+        // these acks should be ignored.
+        for(PaxosMessage feedbackMessage: self.getReceivedFeedbacks()) {
+            if(feedbackMessage.getN() == self.getCurrentN()
+                && feedbackMessage.getType() == PaxosMessage.MESSAGE_TYPE_ACK) {
+
+                validAcks.add(feedbackMessage);
+            }
+        }
+
+        if(validAcks.size() * 2 <= self.getGroup().getParticipants().size()) {
+            // the received number does not exceed the half, prepare to 
+            // start new prepare request again
+            startPropose();
+        }
+    }
+
+    private void checkAndStartLearning() {
+        // check if the number of accepts exceed half of all participants
+        Vector<PaxosMessage> validAccepts = new Vector<PaxosMessage>();
+
+        // only accepts with the same N is avlid accepts
+        // because some very slow acks with a lower N might arrived just now
+        // these accepts should be ignored.
+        for(PaxosMessage feedbackMessage: self.getReceivedFeedbacks()) {
+            if(feedbackMessage.getN() == self.getCurrentN()
+                && feedbackMessage.getType() == PaxosMessage.MESSAGE_TYPE_ACCEPT) {
+                validAccepts.add(feedbackMessage);
+            }
+        }
+
+        if(validAccepts.size() * 2 <= self.getGroup().getParticipants().size()) {
+            // the received number does not exceed the half, prepare to 
+            // start new prepare request again
+            startPropose();
+        }
+        else {
+            self.setChosenValue(self.getProposedValue());
+            self.setStage(PaxosParticipant.STAGE_END);
+            startLearning();
+        }
     }
 }
 
@@ -163,6 +236,9 @@ class PaxosParticipantReceiveThread extends Thread {
             }
             else if(paxosMessage.getType() == PaxosMessage.MESSAGE_TYPE_ACCEPT) {
                 handleAccept();
+            }
+            else if(paxosMessage.getType() == PaxosMessage.MESSAGE_TYPE_LEARNING) {
+                handleLearning();
             }
         }
     }
@@ -301,5 +377,11 @@ class PaxosParticipantReceiveThread extends Thread {
     private void handleAccept() {
         PaxosMessage paxosMessage = (PaxosMessage)message;
         receiver.addReceivedFeedback(paxosMessage);
+    }
+
+    private void handleLearning() {
+        PaxosMessage paxosMessage = (PaxosMessage)message;
+        receiver.setChosenValue(paxosMessage.getV());
+        receiver.setStage(PaxosParticipant.STAGE_END);
     }
 }

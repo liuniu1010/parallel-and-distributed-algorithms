@@ -5,6 +5,7 @@ public class PaxosMessage extends Message {
     public final static int MESSAGE_TYPE_ACK = 2;
     public final static int MESSAGE_TYPE_ACCEPT_REQUEST = 3;
     public final static int MESSAGE_TYPE_ACCEPT = 4;
+    public final static int MESSAGE_TYPE_LEARNING = 5;
 
     private int type;
     private int N = -1;  // indicate the proposer's number, -1 means invalid
