@@ -61,12 +61,6 @@ public class PaxosParticipant extends Participant {
     public void startPropose() {
         PaxosParticipantMonitorThread monitorThread = new PaxosParticipantMonitorThread(this);
         monitorThread.start();
-/*        PaxosMessage prepareRequest = new PaxosMessage(PaxosMessage.MESSAGE_TYPE_PREPARE_REQUEST);
-        prepareRequest.setN(currentN);
-        // at this step of prepare request, the proposed value does
-        // not be set in the message, only initialN be set
-        multiCastMessage(prepareRequest);
-*/
     }
 
     private Vector<PaxosMessage> receivedFeedbacks = new Vector<PaxosMessage>();
@@ -381,7 +375,12 @@ class PaxosParticipantReceiveThread extends Thread {
 
     private void handleLearning() {
         PaxosMessage paxosMessage = (PaxosMessage)message;
-        receiver.setChosenValue(paxosMessage.getV());
-        receiver.setStage(PaxosParticipant.STAGE_END);
+        if(receiver.getChosenValue() < 0 && receiver.getChosenValue() != paxosMessage.getV()) {
+            receiver.setChosenValue(paxosMessage.getV());
+            receiver.setStage(PaxosParticipant.STAGE_END);
+        }
+        else {
+            throw new RuntimeException("current receiver has another chosen value, this implementation of paxos algorithm failed!");
+        }
     }
 }
