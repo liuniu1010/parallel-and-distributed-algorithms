@@ -116,10 +116,12 @@ class PaxosParticipantMonitorThread extends Thread {
     @Override
     public void run() {
         try {
-            synchronized(self) {
-                checkAndRun();
+            while(true) {
+                synchronized(self) {
+                    checkAndRun();
+                }
+                Thread.sleep(timeout);
             }
-            Thread.sleep(timeout);
         }
         catch(InterruptedException iex) {
             iex.printStackTrace();
@@ -197,7 +199,6 @@ class PaxosParticipantMonitorThread extends Thread {
             startPropose();
         }
         else {
-            self.setChosenValue(self.getProposedValue());
             self.setStage(PaxosParticipant.STAGE_END);
             startLearning();
         }
@@ -358,13 +359,24 @@ class PaxosParticipantReceiveThread extends Thread {
             // it is possible that the two N are equal
             // because the two messages might be from the same sender
             // so here we use >=
-
-            if(paxosMessage.getV() == messageAccepted.getV()) {
-                PaxosMessage acceptMessage = new PaxosMessage(PaxosMessage.MESSAGE_TYPE_ACCEPT);
-                acceptMessage.setN(paxosMessage.getN());
-                acceptMessage.setV(paxosMessage.getV());
-                channel.sendMessage(receiver, acceptMessage, sender);
+            if(messageAccepted.getV() >= 0 && messageAccepted.getV() != paxosMessage.getV()) {
+                // current receiver has accept another value,
+                // so it cannot accept any new value
+                return;
             }
+
+            messageAccepted.setN(paxosMessage.getN());
+            messageAccepted.setSenderId(paxosMessage.getSenderId());
+
+            if(messageAccepted.getV() < 0) {
+                messageAccepted.setV(paxosMessage.getV());
+            }
+            // send back accept message
+            PaxosMessage acceptMessage = new PaxosMessage(PaxosMessage.MESSAGE_TYPE_ACCEPT);
+            acceptMessage.setN(paxosMessage.getN());
+            acceptMessage.setV(paxosMessage.getV());
+            channel.sendMessage(receiver, acceptMessage, sender);
+            receiver.setChosenValue(paxosMessage.getV());
         }
     }
 
@@ -375,12 +387,12 @@ class PaxosParticipantReceiveThread extends Thread {
 
     private void handleLearning() {
         PaxosMessage paxosMessage = (PaxosMessage)message;
-        if(receiver.getChosenValue() < 0 && receiver.getChosenValue() != paxosMessage.getV()) {
-            receiver.setChosenValue(paxosMessage.getV());
-            receiver.setStage(PaxosParticipant.STAGE_END);
+        if(receiver.getChosenValue() >= 0 && receiver.getChosenValue() != paxosMessage.getV()) {
+            throw new RuntimeException("current receiver has another chosen value, this implementation of paxos algorithm failed!");
         }
         else {
-            throw new RuntimeException("current receiver has another chosen value, this implementation of paxos algorithm failed!");
+            receiver.setChosenValue(paxosMessage.getV());
+            receiver.setStage(PaxosParticipant.STAGE_END);
         }
     }
 }

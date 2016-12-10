@@ -31,9 +31,17 @@ public class PaxosTest
         return new TestSuite( PaxosTest.class );
     }
 
+    /***
+     * we should test if the paxos algorihtm
+     * can always acheive agreement even under
+     * unreliable channel.
+     * the achieve time cannot be gaurantee under a value
+     * for some special case, it might take a long time
+     * to achieve the agreement.
+     */
     public void testPaxos() {
         // construct the group and participants
-        int participantNumber = 9;
+        int participantNumber = 19;
         Group group = new Group();
         for(int i = 0;i < participantNumber;i++) {
             PaxosParticipant participant = new PaxosParticipant();
@@ -44,7 +52,7 @@ public class PaxosTest
         }
 
         // select the first 3 of them to start propose
-        for(int i = 0;i < 3;i++) {
+        for(int i = 0;i < 5;i++) {
             PaxosParticipant participant = (PaxosParticipant)group.getParticipants().get(i);
             participant.startPropose();
         }
@@ -54,7 +62,6 @@ public class PaxosTest
             while(true) {
                 Thread.sleep(1500);
                 int endNumber = check(group);
-                System.out.println("end number = " + endNumber);
                 if(endNumber == group.getNumberOfParticipants()) {
                     break;
                 }
@@ -73,7 +80,6 @@ public class PaxosTest
         int endNumber = 0;
         for(Participant par: group.getParticipants()) {
             PaxosParticipant participant = (PaxosParticipant)par;
-            System.out.println("participant.stage = " + participant.getStage());
             if(participant.getChosenValue() >= 0) {
                 // current participant has a chosen value, it is in end stage
                 endNumber ++;
